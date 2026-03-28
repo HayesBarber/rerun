@@ -106,6 +106,22 @@ mod tests {
     }
 
     #[test]
+    fn no_spurious_triggers() {
+        let (tx, rx) = mpsc::channel();
+        let debounce = Debounce::new(Duration::from_millis(50), rx);
+
+        // Wait several debounce periods with no events — should not trigger
+        thread::sleep(Duration::from_millis(250));
+        assert!(debounce.debounced.try_recv().is_err());
+
+        // Now send an event, verify exactly one trigger
+        send_paths(&tx, &["a.rs"]);
+        thread::sleep(Duration::from_millis(100));
+        assert!(debounce.debounced.recv().is_ok());
+        assert!(debounce.debounced.try_recv().is_err());
+    }
+
+    #[test]
     fn input_closed_exits() {
         let (tx, rx) = mpsc::channel();
         let debounce = Debounce::new(Duration::from_millis(50), rx);
