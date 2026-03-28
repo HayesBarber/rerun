@@ -17,7 +17,7 @@ const USAGE: &str = "
 
 Usage: rerun [OPTIONS] -- <COMMAND>...
 
-Watch a directory tree for file changes and automatically restart a command.
+Watch a directory for file changes and automatically restart a command.
 
 Options:
   -p, --path <PATH>       Root directory to watch (default: \".\")
