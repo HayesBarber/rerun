@@ -1,4 +1,4 @@
-# rerun
+# rerun: file watcher + command runner
 
 ![Preview](./preview.png)
 
