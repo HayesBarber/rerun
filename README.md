@@ -1,8 +1,12 @@
-# rerun: file watcher + command runner
+<p align="center">
+  <img src="./preview.png" alt="Preview"/>
+</p>
 
-![Preview](./preview.png)
+<p align="center">
+  Watch a directory for file changes and automatically restart a command
+</p>
 
-Watch a directory for file changes and automatically restart a command.
+---
 
 ## Installation
 
