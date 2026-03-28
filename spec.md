@@ -81,7 +81,6 @@ File system event → Watcher → sends PathBuf to channel → Debounce → Trig
 
 ## Optional Stretch Goals
 
-* Quiet mode
 * Ignore common dirs (`.git`, `target`)
 * Show which files changed
 * Exit code propagation from child
