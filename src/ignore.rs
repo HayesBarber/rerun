@@ -55,23 +55,19 @@ impl IgnoreFilter {
 
         for component in path.components() {
             let name = component.as_os_str().to_string_lossy();
-            for pattern in &self.patterns {
-                if Self::matches(&name, pattern) {
-                    return true;
+            if self.patterns.contains(&*name) {
+                return true;
+            }
+            for pattern in self.patterns.iter().filter(|p| p.starts_with('*')) {
+                if let Some(suffix) = pattern.strip_prefix('*') {
+                    if name.ends_with(suffix) {
+                        return true;
+                    }
                 }
             }
         }
 
         false
-    }
-
-    fn matches(name: &str, pattern: &str) -> bool {
-        if pattern.starts_with('*') {
-            if let Some(suffix) = pattern.strip_prefix('*') {
-                return name.ends_with(suffix);
-            }
-        }
-        name == pattern
     }
 }
 
