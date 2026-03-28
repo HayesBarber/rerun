@@ -23,29 +23,7 @@ impl PollWatcher {
     }
 
     fn latest_mtime(&self) -> Option<SystemTime> {
-        let mut latest: Option<SystemTime> = None;
-
-        if let Ok(entries) = fs::read_dir(&self.path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    let dir_latest = Self::dir_latest_mtime(&path, &self.extensions);
-                    if let Some(t) = dir_latest {
-                        latest = Some(latest.map_or(t, |curr| if t > curr { t } else { curr }));
-                    }
-                } else if self.matches_extension(&path) {
-                    if let Ok(metadata) = fs::metadata(&path) {
-                        if let Ok(modified) = metadata.modified() {
-                            latest = Some(latest.map_or(modified, |curr| {
-                                if modified > curr { modified } else { curr }
-                            }));
-                        }
-                    }
-                }
-            }
-        }
-
-        latest
+        Self::dir_latest_mtime(&self.path, &self.extensions)
     }
 
     fn dir_latest_mtime(path: &Path, extensions: &[String]) -> Option<SystemTime> {
@@ -54,24 +32,18 @@ impl PollWatcher {
         if let Ok(entries) = fs::read_dir(path) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
-                if entry_path.is_dir() {
-                    if let Some(t) = Self::dir_latest_mtime(&entry_path, extensions) {
-                        latest = Some(latest.map_or(t, |curr| if t > curr { t } else { curr }));
-                    }
-                } else if extensions.is_empty()
-                    || extensions.iter().any(|ext| {
-                        entry_path
-                            .extension()
-                            .map_or(false, |e| e.to_string_lossy() == *ext)
-                    })
-                {
-                    if let Ok(metadata) = fs::metadata(&entry_path) {
-                        if let Ok(modified) = metadata.modified() {
-                            latest = Some(latest.map_or(modified, |curr| {
-                                if modified > curr { modified } else { curr }
-                            }));
-                        }
-                    }
+                let current = if entry_path.is_dir() {
+                    Self::dir_latest_mtime(&entry_path, extensions)
+                } else if Self::matches_extension(&entry_path, extensions) {
+                    fs::metadata(&entry_path)
+                        .ok()
+                        .and_then(|m| m.modified().ok())
+                } else {
+                    None
+                };
+
+                if let Some(t) = current {
+                    latest = Some(latest.map_or(t, |curr| if t > curr { t } else { curr }));
                 }
             }
         }
@@ -79,13 +51,11 @@ impl PollWatcher {
         latest
     }
 
-    fn matches_extension(&self, path: &Path) -> bool {
-        if self.extensions.is_empty() {
-            return true;
-        }
-        path.extension().map_or(false, |ext| {
-            self.extensions.iter().any(|e| ext.to_string_lossy() == *e)
-        })
+    fn matches_extension(path: &Path, extensions: &[String]) -> bool {
+        extensions.is_empty()
+            || path.extension().map_or(false, |ext| {
+                extensions.iter().any(|e| ext.to_string_lossy() == *e)
+            })
     }
 }
 
