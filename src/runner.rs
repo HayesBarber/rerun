@@ -43,7 +43,7 @@ impl Runner {
                     if let Some(code) = status.code() {
                         eprintln!("child process interrupted (pid {pid}, exit code {code})");
                     } else {
-                        eprintln!("child process interrupted (pid {pid}, killed by signal)");
+                        eprintln!("child process interrupted (pid {pid}, unknown exit code)");
                     }
                     return;
                 }
