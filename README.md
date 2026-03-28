@@ -1,5 +1,7 @@
-█▀█ █▀▀ █▀█ █ █ █▄ █<br>
+```
+█▀█ █▀▀ █▀█ █ █ █▄ █
 █▀▄ ██▄ █▀▄ █▄█ █ ▀█
+```
 
 Watch a directory for file changes and automatically restart a command.
 
