@@ -1,5 +1,6 @@
 mod argparse;
 mod debounce;
+mod watcher;
 
 fn main() {
     let args = argparse::CliArgs::parse().unwrap_or_else(|e| {
