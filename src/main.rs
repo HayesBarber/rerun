@@ -1,5 +1,6 @@
 mod argparse;
 mod debounce;
+mod runner;
 mod watcher;
 
 fn main() {
