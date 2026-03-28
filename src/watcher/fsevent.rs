@@ -171,4 +171,23 @@ mod tests {
             "watcher should ignore .js files when filtering for .rs"
         );
     }
+
+    #[test]
+    fn ignores_default_dirs() {
+        let dir = tempdir().unwrap();
+        let git_dir = dir.path().join(".git");
+        fs::create_dir(&git_dir).unwrap();
+
+        let ignore = IgnoreFilter::new(dir.path(), &[], false);
+        let (tx, rx) = mpsc::channel();
+        let mut watcher = FSEventWatcher::new(dir.path().to_path_buf(), vec![], ignore);
+
+        thread::spawn(move || watcher.run(tx));
+        thread::sleep(Duration::from_millis(100));
+
+        fs::write(git_dir.join("HEAD"), "ref: refs/heads/main").unwrap();
+
+        let result = rx.recv_timeout(Duration::from_millis(500));
+        assert!(result.is_err(), "watcher should ignore files inside .git");
+    }
 }
