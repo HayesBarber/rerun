@@ -67,14 +67,9 @@ impl Watcher for PollWatcher {
             std::thread::sleep(self.poll_interval);
 
             if let Some(current_mtime) = self.latest_mtime() {
-                if let Some(last) = self.last_mtime {
-                    if current_mtime > last {
-                        let _ = tx.send(());
-                        break;
-                    }
-                } else {
+                if Some(current_mtime) > self.last_mtime {
                     let _ = tx.send(());
-                    break;
+                    self.last_mtime = Some(current_mtime);
                 }
             }
         }
