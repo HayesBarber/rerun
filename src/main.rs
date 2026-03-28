@@ -72,4 +72,8 @@ fn main() {
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
+
+    if SHUTDOWN.load(Ordering::Relaxed) {
+        eprintln!("\nreceived SIGINT, shutting down...");
+    }
 }

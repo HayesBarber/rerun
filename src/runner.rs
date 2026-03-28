@@ -39,9 +39,15 @@ impl Runner {
             }
 
             match child.wait_timeout(Duration::from_millis(200)) {
-                Ok(Some(_)) => return,
+                Ok(Some(_)) => {
+                    eprintln!("child process interrupted (pid {pid})");
+                    return;
+                }
                 Ok(None) => {}
-                Err(_) => return,
+                Err(_) => {
+                    eprintln!("child process interrupted (pid {pid})");
+                    return;
+                }
             }
 
             unsafe {
@@ -49,6 +55,7 @@ impl Runner {
             }
 
             let _ = child.wait();
+            eprintln!("child process killed (pid {pid})");
         }
     }
 
