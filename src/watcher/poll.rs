@@ -59,9 +59,11 @@ impl PollWatcher {
                         latest = Some(latest.map_or(t, |curr| if t > curr { t } else { curr }));
                     }
                 } else if extensions.is_empty()
-                    || extensions
-                        .iter()
-                        .any(|ext| entry_path.extension().map_or(false, |e| e == ext))
+                    || extensions.iter().any(|ext| {
+                        entry_path
+                            .extension()
+                            .map_or(false, |e| e.to_string_lossy() == *ext)
+                    })
                 {
                     if let Ok(metadata) = fs::metadata(&entry_path) {
                         if let Ok(modified) = metadata.modified() {
@@ -81,8 +83,9 @@ impl PollWatcher {
         if self.extensions.is_empty() {
             return true;
         }
-        path.extension()
-            .map_or(false, |ext| self.extensions.iter().any(|e| ext == e))
+        path.extension().map_or(false, |ext| {
+            self.extensions.iter().any(|e| ext.to_string_lossy() == *e)
+        })
     }
 }
 
