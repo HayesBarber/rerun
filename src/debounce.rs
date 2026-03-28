@@ -8,7 +8,7 @@ pub struct Debounce {
 }
 
 impl Debounce {
-    pub fn new(duration: Duration, rx: mpsc::Receiver<std::path::PathBuf>) -> Self {
+    pub fn new(duration: Duration, rx: mpsc::Receiver<()>) -> Self {
         let (tx, debounced) = mpsc::channel();
 
         let handle = thread::spawn(move || {
@@ -21,12 +21,12 @@ impl Debounce {
         }
     }
 
-    fn run(duration: Duration, rx: &mpsc::Receiver<std::path::PathBuf>, tx: &mpsc::Sender<()>) {
+    fn run(duration: Duration, rx: &mpsc::Receiver<()>, tx: &mpsc::Sender<()>) {
         let mut pending = false;
 
         loop {
             match rx.recv_timeout(duration) {
-                Ok(_event) => {
+                Ok(()) => {
                     pending = true;
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
@@ -49,11 +49,10 @@ impl Debounce {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
-    fn send_paths(tx: &mpsc::Sender<PathBuf>, paths: &[&str]) {
-        for p in paths {
-            tx.send(PathBuf::from(p)).unwrap();
+    fn send_events(tx: &mpsc::Sender<()>, count: usize) {
+        for _ in 0..count {
+            tx.send(()).unwrap();
         }
     }
 
@@ -62,7 +61,7 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         let debounce = Debounce::new(Duration::from_millis(50), rx);
 
-        send_paths(&tx, &["a.rs"]);
+        send_events(&tx, 1);
         drop(tx);
 
         assert!(debounce.debounced.recv().is_ok());
@@ -73,8 +72,8 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         let debounce = Debounce::new(Duration::from_millis(50), rx);
 
-        for i in 0..20 {
-            tx.send(PathBuf::from(format!("{i}.rs"))).unwrap();
+        for _ in 0..20 {
+            tx.send(()).unwrap();
             thread::sleep(Duration::from_millis(5));
         }
         drop(tx);
@@ -90,11 +89,11 @@ mod tests {
         let debounce = Debounce::new(Duration::from_millis(50), rx);
 
         // First burst
-        send_paths(&tx, &["a.rs", "b.rs"]);
+        send_events(&tx, 2);
         thread::sleep(Duration::from_millis(100)); // long enough to trigger
 
         // Second burst
-        send_paths(&tx, &["c.rs"]);
+        send_events(&tx, 1);
         thread::sleep(Duration::from_millis(100));
 
         drop(tx);
@@ -115,7 +114,7 @@ mod tests {
         assert!(debounce.debounced.try_recv().is_err());
 
         // Now send an event, verify exactly one trigger
-        send_paths(&tx, &["a.rs"]);
+        send_events(&tx, 1);
         thread::sleep(Duration::from_millis(100));
         assert!(debounce.debounced.recv().is_ok());
         assert!(debounce.debounced.try_recv().is_err());

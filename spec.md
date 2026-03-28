@@ -54,7 +54,7 @@ src/
 
 ```rust
 pub trait Watcher {
-    fn run(&mut self, tx: std::sync::mpsc::Sender<std::path::PathBuf>);
+    fn run(&mut self, tx: std::sync::mpsc::Sender<>);
 }
 ```
 

@@ -52,6 +52,7 @@ impl Runner {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         self.child.is_some()
     }
