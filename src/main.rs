@@ -17,9 +17,24 @@ fn main() {
 
     let (watcher_tx, watcher_rx) = mpsc::channel();
 
-    let poll_interval = Duration::from_millis((args.debounce_ms / 2).max(50));
-    let mut watcher =
-        watcher::poll::PollWatcher::new(args.path.clone(), args.ext.clone(), poll_interval);
+    let mut watcher: Box<dyn Watcher + Send> = {
+        #[cfg(target_os = "macos")]
+        {
+            Box::new(watcher::fsevent::FSEventWatcher::new(
+                args.path.clone(),
+                args.ext.clone(),
+            ))
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let poll_interval = Duration::from_millis((args.debounce_ms / 2).max(50));
+            Box::new(watcher::poll::PollWatcher::new(
+                args.path.clone(),
+                args.ext.clone(),
+                poll_interval,
+            ))
+        }
+    };
 
     thread::spawn(move || watcher.run(watcher_tx));
 
