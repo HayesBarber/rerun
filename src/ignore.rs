@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -5,25 +6,25 @@ const DEFAULT_IGNORES: &[&str] = &[".git", "target", "node_modules", ".DS_Store"
 
 #[derive(Clone)]
 pub struct IgnoreFilter {
-    patterns: Vec<String>,
+    patterns: HashSet<String>,
     disabled: bool,
 }
 
 impl IgnoreFilter {
     pub fn disabled() -> Self {
         Self {
-            patterns: Vec::new(),
+            patterns: HashSet::new(),
             disabled: true,
         }
     }
 
     pub fn new(watch_root: &Path, cli_patterns: &[String], use_gitignore: bool) -> Self {
-        let mut patterns: Vec<String> = DEFAULT_IGNORES.iter().map(|s| s.to_string()).collect();
+        let mut patterns: HashSet<String> = DEFAULT_IGNORES.iter().map(|s| s.to_string()).collect();
 
         for p in cli_patterns {
             let trimmed = p.trim();
-            if !trimmed.is_empty() && !patterns.contains(&trimmed.to_string()) {
-                patterns.push(trimmed.to_string());
+            if !trimmed.is_empty() {
+                patterns.insert(trimmed.to_string());
             }
         }
 
@@ -36,9 +37,7 @@ impl IgnoreFilter {
                         continue;
                     }
                     let pattern = trimmed.trim_end_matches('/');
-                    if !patterns.contains(&pattern.to_string()) {
-                        patterns.push(pattern.to_string());
-                    }
+                    patterns.insert(pattern.to_string());
                 }
             }
         }
@@ -57,7 +56,7 @@ impl IgnoreFilter {
         for component in path.components() {
             let name = component.as_os_str().to_string_lossy();
             for pattern in &self.patterns {
-                if self.matches(&name, pattern) {
+                if Self::matches(&name, pattern) {
                     return true;
                 }
             }
@@ -66,7 +65,7 @@ impl IgnoreFilter {
         false
     }
 
-    fn matches(&self, name: &str, pattern: &str) -> bool {
+    fn matches(name: &str, pattern: &str) -> bool {
         if pattern.starts_with('*') {
             if let Some(suffix) = pattern.strip_prefix('*') {
                 return name.ends_with(suffix);
