@@ -4,6 +4,7 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, SystemTime};
 
 use super::Watcher;
+use crate::ignore::IgnoreFilter;
 
 #[allow(dead_code)]
 pub struct PollWatcher {
@@ -11,31 +12,47 @@ pub struct PollWatcher {
     extensions: Vec<String>,
     poll_interval: Duration,
     last_mtime: Option<SystemTime>,
+    ignore: IgnoreFilter,
 }
 
 #[allow(dead_code)]
 impl PollWatcher {
-    pub fn new(path: PathBuf, extensions: Vec<String>, poll_interval: Duration) -> Self {
+    pub fn new(
+        path: PathBuf,
+        extensions: Vec<String>,
+        poll_interval: Duration,
+        ignore: IgnoreFilter,
+    ) -> Self {
         Self {
             path,
             extensions,
             poll_interval,
             last_mtime: None,
+            ignore,
         }
     }
 
     fn latest_mtime(&self) -> Option<SystemTime> {
-        Self::dir_latest_mtime(&self.path, &self.extensions)
+        Self::dir_latest_mtime(&self.path, &self.extensions, &self.ignore)
     }
 
-    fn dir_latest_mtime(path: &Path, extensions: &[String]) -> Option<SystemTime> {
+    fn dir_latest_mtime(
+        path: &Path,
+        extensions: &[String],
+        ignore: &IgnoreFilter,
+    ) -> Option<SystemTime> {
         let mut latest: Option<SystemTime> = None;
 
         if let Ok(entries) = fs::read_dir(path) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
+
+                if ignore.is_ignored(&entry_path) {
+                    continue;
+                }
+
                 let current = if entry_path.is_dir() {
-                    Self::dir_latest_mtime(&entry_path, extensions)
+                    Self::dir_latest_mtime(&entry_path, extensions, ignore)
                 } else if Self::matches_extension(&entry_path, extensions) {
                     fs::metadata(&entry_path)
                         .ok()
@@ -86,6 +103,10 @@ mod tests {
     use std::thread;
     use tempfile::tempdir;
 
+    fn no_ignore() -> IgnoreFilter {
+        IgnoreFilter::disabled()
+    }
+
     #[test]
     fn matches_extension_empty_allows_all() {
         let ext = vec![];
@@ -114,7 +135,8 @@ mod tests {
     fn dir_latest_mtime_empty_dir() {
         let dir = tempdir().unwrap();
         let path = dir.path();
-        let result = PollWatcher::dir_latest_mtime(path, &[]);
+        let ignore = no_ignore();
+        let result = PollWatcher::dir_latest_mtime(path, &[], &ignore);
         assert!(result.is_none());
     }
 
@@ -123,7 +145,8 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.rs");
         File::create(&file_path).unwrap();
-        let result = PollWatcher::dir_latest_mtime(dir.path(), &[]);
+        let ignore = no_ignore();
+        let result = PollWatcher::dir_latest_mtime(dir.path(), &[], &ignore);
         assert!(result.is_some());
     }
 
@@ -134,7 +157,8 @@ mod tests {
         let file2 = dir.path().join("b.rs");
         File::create(&file1).unwrap();
         File::create(&file2).unwrap();
-        let result = PollWatcher::dir_latest_mtime(dir.path(), &[]);
+        let ignore = no_ignore();
+        let result = PollWatcher::dir_latest_mtime(dir.path(), &[], &ignore);
         assert!(result.is_some());
     }
 
@@ -145,7 +169,8 @@ mod tests {
         fs::create_dir(&subdir).unwrap();
         let file = subdir.join("test.rs");
         File::create(&file).unwrap();
-        let result = PollWatcher::dir_latest_mtime(dir.path(), &[]);
+        let ignore = no_ignore();
+        let result = PollWatcher::dir_latest_mtime(dir.path(), &[], &ignore);
         assert!(result.is_some());
     }
 
@@ -157,7 +182,8 @@ mod tests {
         File::create(&rs_file).unwrap();
         File::create(&js_file).unwrap();
         let ext = vec!["rs".to_string()];
-        let result = PollWatcher::dir_latest_mtime(dir.path(), &ext);
+        let ignore = no_ignore();
+        let result = PollWatcher::dir_latest_mtime(dir.path(), &ext, &ignore);
         assert!(result.is_some());
     }
 
@@ -168,8 +194,12 @@ mod tests {
         File::create(&file_path).unwrap();
 
         let (tx, rx) = mpsc::channel();
-        let mut watcher =
-            PollWatcher::new(dir.path().to_path_buf(), vec![], Duration::from_millis(50));
+        let mut watcher = PollWatcher::new(
+            dir.path().to_path_buf(),
+            vec![],
+            Duration::from_millis(50),
+            no_ignore(),
+        );
 
         thread::spawn(move || watcher.run(tx));
 
@@ -178,5 +208,20 @@ mod tests {
 
         let result = rx.recv_timeout(Duration::from_millis(200));
         assert!(result.is_ok(), "watcher should detect file change");
+    }
+
+    #[test]
+    fn dir_latest_mtime_ignores_ignored_dirs() {
+        let dir = tempdir().unwrap();
+        let git_dir = dir.path().join(".git");
+        fs::create_dir(&git_dir).unwrap();
+        File::create(git_dir.join("HEAD")).unwrap();
+
+        let src_file = dir.path().join("main.rs");
+        File::create(&src_file).unwrap();
+
+        let ignore = IgnoreFilter::new(dir.path(), &[], false);
+        let result = PollWatcher::dir_latest_mtime(dir.path(), &[], &ignore);
+        assert!(result.is_some());
     }
 }

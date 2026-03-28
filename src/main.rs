@@ -1,5 +1,6 @@
 mod argparse;
 mod debounce;
+mod ignore;
 mod runner;
 mod watcher;
 
@@ -8,6 +9,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use ignore::IgnoreFilter;
 use watcher::Watcher;
 
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
@@ -24,12 +26,19 @@ fn main() {
 
     let (watcher_tx, watcher_rx) = mpsc::channel();
 
+    let ignore_filter = if args.no_ignore {
+        IgnoreFilter::disabled()
+    } else {
+        IgnoreFilter::new(&args.path, &args.ignore, true)
+    };
+
     let mut watcher: Box<dyn Watcher + Send> = {
         #[cfg(target_os = "macos")]
         {
             Box::new(watcher::fsevent::FSEventWatcher::new(
                 args.path.clone(),
                 args.ext.clone(),
+                ignore_filter,
             ))
         }
         #[cfg(not(target_os = "macos"))]
@@ -39,6 +48,7 @@ fn main() {
                 args.path.clone(),
                 args.ext.clone(),
                 poll_interval,
+                ignore_filter,
             ))
         }
     };

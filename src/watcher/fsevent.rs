@@ -4,15 +4,21 @@ use std::sync::mpsc::Sender;
 use fsevent::{Event, FsEvent, StreamFlags};
 
 use super::Watcher;
+use crate::ignore::IgnoreFilter;
 
 pub struct FSEventWatcher {
     path: PathBuf,
     extensions: Vec<String>,
+    ignore: IgnoreFilter,
 }
 
 impl FSEventWatcher {
-    pub fn new(path: PathBuf, extensions: Vec<String>) -> Self {
-        Self { path, extensions }
+    pub fn new(path: PathBuf, extensions: Vec<String>, ignore: IgnoreFilter) -> Self {
+        Self {
+            path,
+            extensions,
+            ignore,
+        }
     }
 
     fn matches_extension(path: &Path, extensions: &[String]) -> bool {
@@ -27,6 +33,7 @@ impl Watcher for FSEventWatcher {
     fn run(&mut self, tx: Sender<()>) {
         let path_str = self.path.to_string_lossy().to_string();
         let extensions = self.extensions.clone();
+        let ignore = self.ignore.clone();
 
         let (event_tx, event_rx) = std::sync::mpsc::channel::<Event>();
 
@@ -46,6 +53,9 @@ impl Watcher for FSEventWatcher {
                     continue;
                 }
                 let path = Path::new(&event.path);
+                if ignore.is_ignored(path) {
+                    continue;
+                }
                 if Self::matches_extension(path, &extensions) {
                     let _ = tx.send(());
                 }
@@ -66,6 +76,10 @@ mod tests {
     use std::thread;
     use std::time::Duration;
     use tempfile::tempdir;
+
+    fn no_ignore() -> IgnoreFilter {
+        IgnoreFilter::disabled()
+    }
 
     #[test]
     fn matches_extension_empty_allows_all() {
@@ -106,7 +120,7 @@ mod tests {
     fn detects_file_creation() {
         let dir = tempdir().unwrap();
         let (tx, rx) = mpsc::channel();
-        let mut watcher = FSEventWatcher::new(dir.path().to_path_buf(), vec![]);
+        let mut watcher = FSEventWatcher::new(dir.path().to_path_buf(), vec![], no_ignore());
 
         thread::spawn(move || watcher.run(tx));
         thread::sleep(Duration::from_millis(100));
@@ -125,7 +139,7 @@ mod tests {
         fs::write(&file_path, "initial").unwrap();
 
         let (tx, rx) = mpsc::channel();
-        let mut watcher = FSEventWatcher::new(dir.path().to_path_buf(), vec![]);
+        let mut watcher = FSEventWatcher::new(dir.path().to_path_buf(), vec![], no_ignore());
 
         thread::spawn(move || watcher.run(tx));
         thread::sleep(Duration::from_millis(100));
@@ -140,7 +154,11 @@ mod tests {
     fn extension_filter_ignores_non_matching() {
         let dir = tempdir().unwrap();
         let (tx, rx) = mpsc::channel();
-        let mut watcher = FSEventWatcher::new(dir.path().to_path_buf(), vec!["rs".to_string()]);
+        let mut watcher = FSEventWatcher::new(
+            dir.path().to_path_buf(),
+            vec!["rs".to_string()],
+            no_ignore(),
+        );
 
         thread::spawn(move || watcher.run(tx));
         thread::sleep(Duration::from_millis(100));
