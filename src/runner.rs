@@ -45,7 +45,7 @@ impl Runner {
                 }
                 Ok(None) => {}
                 Err(_) => {
-                    eprintln!("child process interrupted (pid {pid})");
+                    eprintln!("child process wait error (pid {pid}), assuming exited");
                     return;
                 }
             }
