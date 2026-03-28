@@ -55,7 +55,7 @@ rerun -d 500 -- ./run.sh
 Ignore additional directories:
 
 ```sh
-rerun -i dist,out -- node app.js
+rerun -i dist,out,*.log -- node app.js
 ```
 
 Watch everything, no ignoring:
