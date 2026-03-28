@@ -3,11 +3,18 @@ mod debounce;
 mod runner;
 mod watcher;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
 use watcher::Watcher;
+
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn handle_sigint(_sig: libc::c_int) {
+    SHUTDOWN.store(true, Ordering::Relaxed);
+}
 
 fn main() {
     let args = argparse::CliArgs::parse().unwrap_or_else(|e| {
@@ -46,10 +53,27 @@ fn main() {
         eprintln!("error spawning command: {e}");
     }
 
-    while let Ok(()) = debounce.debounced.recv() {
-        eprintln!("\nchange detected, restarting...");
-        if let Err(e) = runner.spawn(&args.command) {
-            eprintln!("error spawning command: {e}");
+    unsafe {
+        libc::signal(
+            libc::SIGINT,
+            handle_sigint as *const () as libc::sighandler_t,
+        );
+    }
+
+    while !SHUTDOWN.load(Ordering::Relaxed) {
+        match debounce.debounced.recv_timeout(Duration::from_millis(100)) {
+            Ok(()) => {
+                eprintln!("\nchange detected, restarting...");
+                if let Err(e) = runner.spawn(&args.command) {
+                    eprintln!("error spawning command: {e}");
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
+    }
+
+    if SHUTDOWN.load(Ordering::Relaxed) {
+        eprintln!("\nreceived SIGINT, shutting down...");
     }
 }

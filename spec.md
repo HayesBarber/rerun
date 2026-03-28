@@ -15,7 +15,6 @@
      * `-p, --path <PATH>` → root directory (default `.`)
      * `-e, --ext <EXT>` → comma-separated extensions filter (optional)
      * `-d, --debounce <MS>` → quiet period in ms (default 200ms)
-     * `-q, --quiet` → hide watcher output
    * `--` → separates CLI flags from the command to run
    * Command passed as raw arguments (everything after `--`)
    * No deps for this

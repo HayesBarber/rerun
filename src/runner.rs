@@ -39,16 +39,44 @@ impl Runner {
             }
 
             match child.wait_timeout(Duration::from_millis(200)) {
-                Ok(Some(_)) => return,
-                Ok(None) => {}
-                Err(_) => return,
+                Ok(Some(status)) => {
+                    if let Some(code) = status.code() {
+                        eprintln!("child process interrupted (pid {pid}, exit code {code})");
+                    } else {
+                        eprintln!("child process interrupted (pid {pid}, unknown exit code)");
+                    }
+                    return;
+                }
+                Ok(None) => {
+                    eprintln!(
+                        "Timed out waiting for child process to exit (pid {pid}), escalating to SIGKILL"
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Error waiting for child process to exit (pid {pid}), escalating to SIGKILL: {e}"
+                    );
+                }
             }
 
             unsafe {
                 libc::kill(pid, libc::SIGKILL);
             }
 
-            let _ = child.wait();
+            match child.wait() {
+                Ok(status) => {
+                    if let Some(code) = status.code() {
+                        eprintln!("child process killed (pid {pid}, exit code {code})");
+                    } else {
+                        eprintln!("child process killed (pid {pid}, unknown exit code)");
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Error waiting for child process to exit (pid {pid}), SIGKILL attempt failed: {e}"
+                    );
+                }
+            }
         }
     }
 
