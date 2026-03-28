@@ -5,6 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use super::Watcher;
 
+#[allow(dead_code)]
 pub struct PollWatcher {
     path: PathBuf,
     extensions: Vec<String>,
@@ -12,6 +13,7 @@ pub struct PollWatcher {
     last_mtime: Option<SystemTime>,
 }
 
+#[allow(dead_code)]
 impl PollWatcher {
     pub fn new(path: PathBuf, extensions: Vec<String>, poll_interval: Duration) -> Self {
         Self {
