@@ -23,10 +23,14 @@ Options:
   -p, --path <PATH>       Root directory to watch (default: ".")
   -e, --ext <EXT>         Comma-separated file extensions to filter (e.g. "rs,toml")
   -d, --debounce <MS>     Quiet period in milliseconds (default: 200)
+  -i, --ignore <PAT>      Comma-separated ignore patterns (extends defaults)
+      --no-ignore         Disable all ignoring (defaults, .gitignore, --ignore)
   -h, --help              Print this help message
 ```
 
-Arguments after `--` are treated as the command to run.
+Default ignores: `.git`, `target`, `node_modules`, `.DS_Store`, `__pycache__`
+
+The `.gitignore` file in the watch root is automatically read.
 
 ## Examples
 
@@ -46,6 +50,18 @@ Run a script with a 500ms debounce:
 
 ```sh
 rerun -d 500 -- ./run.sh
+```
+
+Ignore additional directories:
+
+```sh
+rerun -i dist,out,*.log -- node app.js
+```
+
+Watch everything, no ignoring:
+
+```sh
+rerun --no-ignore -- cat file.txt
 ```
 
 ## How it works

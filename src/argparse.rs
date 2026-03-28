@@ -6,6 +6,8 @@ pub struct CliArgs {
     pub path: PathBuf,
     pub ext: Vec<String>,
     pub debounce_ms: u64,
+    pub ignore: Vec<String>,
+    pub no_ignore: bool,
     pub command: Vec<String>,
 }
 
@@ -21,7 +23,12 @@ Options:
   -p, --path <PATH>       Root directory to watch (default: \".\")
   -e, --ext <EXT>         Comma-separated file extensions to filter (e.g. \"rs,toml\")
   -d, --debounce <MS>     Quiet period in milliseconds (default: 200)
+  -i, --ignore <PAT>      Comma-separated ignore patterns (extends defaults)
+      --no-ignore         Disable all ignoring (defaults, .gitignore, --ignore)
   -h, --help              Print this help message
+
+Default ignores: .git, target, node_modules, .DS_Store, __pycache__
+.gitignore in the watch root is automatically read unless --no-ignore is set.
 
 Arguments after \"--\" are treated as the command to run.";
 
@@ -34,6 +41,8 @@ impl CliArgs {
         let mut path = PathBuf::from(".");
         let mut ext: Vec<String> = Vec::new();
         let mut debounce_ms: u64 = 200;
+        let mut ignore: Vec<String> = Vec::new();
+        let mut no_ignore = false;
         let mut command: Vec<String> = Vec::new();
 
         let mut iter = args.into_iter();
@@ -64,6 +73,15 @@ impl CliArgs {
                         .parse()
                         .map_err(|_| format!("invalid debounce value: {val}"))?;
                 }
+                "-i" | "--ignore" => {
+                    let val = iter
+                        .next()
+                        .ok_or_else(|| format!("missing value for {arg}"))?;
+                    ignore = val.split(',').map(str::trim).map(String::from).collect();
+                }
+                "--no-ignore" => {
+                    no_ignore = true;
+                }
                 "--" => {
                     command = iter.collect();
                     break;
@@ -87,6 +105,8 @@ impl CliArgs {
             path,
             ext,
             debounce_ms,
+            ignore,
+            no_ignore,
             command,
         })
     }
@@ -106,6 +126,8 @@ mod tests {
         assert_eq!(cli.path, PathBuf::from("."));
         assert!(cli.ext.is_empty());
         assert_eq!(cli.debounce_ms, 200);
+        assert!(cli.ignore.is_empty());
+        assert!(!cli.no_ignore);
         assert_eq!(cli.command, vec!["echo", "hi"]);
     }
 
@@ -175,5 +197,38 @@ mod tests {
     fn single_ext() {
         let cli = CliArgs::parse_from(args(&["-e", "rs", "--", "cargo", "build"])).unwrap();
         assert_eq!(cli.ext, vec!["rs"]);
+    }
+
+    #[test]
+    fn ignore_short_flag() {
+        let cli = CliArgs::parse_from(args(&["-i", "dist,out", "--", "cargo", "build"])).unwrap();
+        assert_eq!(cli.ignore, vec!["dist", "out"]);
+    }
+
+    #[test]
+    fn ignore_long_flag() {
+        let cli = CliArgs::parse_from(args(&["--ignore", "*.log,cache", "--", "cargo", "build"]))
+            .unwrap();
+        assert_eq!(cli.ignore, vec!["*.log", "cache"]);
+    }
+
+    #[test]
+    fn no_ignore_flag() {
+        let cli = CliArgs::parse_from(args(&["--no-ignore", "--", "cargo", "build"])).unwrap();
+        assert!(cli.no_ignore);
+    }
+
+    #[test]
+    fn ignore_missing_value_errors() {
+        let err = CliArgs::parse_from(args(&["-i"])).unwrap_err();
+        assert!(err.contains("missing value"));
+    }
+
+    #[test]
+    fn all_ignore_flags_combined() {
+        let cli = CliArgs::parse_from(args(&["-i", "dist", "--no-ignore", "--", "cargo", "build"]))
+            .unwrap();
+        assert_eq!(cli.ignore, vec!["dist"]);
+        assert!(cli.no_ignore);
     }
 }
